@@ -1,0 +1,35 @@
+{
+ "add_total_row": 0,
+ "add_translate_data": 0,
+ "columns": [],
+ "creation": "2025-11-26 10:38:29.015691",
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "filters": [],
+ "idx": 0,
+ "is_standard": "Yes",
+ "letterhead": null,
+ "modified": "2025-11-26 10:38:29.015691",
+ "modified_by": "Administrator",
+ "module": "Kiwi Food Stuff",
+ "name": "Daily Profit",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "query": "SELECT\n    DATE(si.posting_date) AS date,\n    SUM(\n        CASE \n            WHEN (si.base_grand_total - (sii.base_net_rate * sii.qty)) > 0 \n            THEN (si.base_grand_total - (sii.base_net_rate * sii.qty)) \n            ELSE 0 \n        END\n    ) AS profit,\n    SUM(\n        CASE \n            WHEN (si.base_grand_total - (sii.base_net_rate * sii.qty)) < 0 \n            THEN ABS(si.base_grand_total - (sii.base_net_rate * sii.qty)) \n            ELSE 0 \n        END\n    ) AS loss\nFROM `tabSales Invoice` si\nLEFT JOIN `tabSales Invoice Item` sii ON sii.parent = si.name\nWHERE si.docstatus = 1\n  AND si.posting_date >= DATE_SUB(CURDATE(), INTERVAL 5 DAY)\nGROUP BY DATE(si.posting_date)\nORDER BY DATE(si.posting_date);\n",
+ "ref_doctype": "Sales Invoice",
+ "report_name": "Daily Profit",
+ "report_type": "Query Report",
+ "roles": [
+  {
+   "role": "Accounts Manager"
+  },
+  {
+   "role": "Accounts User"
+  },
+  {
+   "role": "Sales User"
+  }
+ ],
+ "timeout": 0
+}

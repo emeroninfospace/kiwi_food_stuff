@@ -228,6 +228,17 @@ app_license = "mit"
 # 	}
 # ]
 
+fixtures = [
+    {
+        "dt": "Custom Field",
+        "filters": [
+            ["name", "in", ["Sales Invoice-custom_sales_person",
+                            ]]
+        ]
+    }
+]
+
+
 # Authentication and authorization
 # --------------------------------
 

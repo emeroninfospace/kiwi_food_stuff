@@ -1,0 +1,40 @@
+{
+ "based_on": "creation",
+ "chart_name": "Sales by Salesman",
+ "chart_type": "Sum",
+ "creation": "2025-11-26 10:39:09.274489",
+ "currency": "AED",
+ "docstatus": 0,
+ "doctype": "Dashboard Chart",
+ "document_type": "Sales Invoice",
+ "dynamic_filters_json": "[]",
+ "filters_json": "[[\"Sales Invoice\",\"docstatus\",\"=\",\"1\",false]]",
+ "group_by_type": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "last_synced_on": "2025-11-26 09:36:08.544811",
+ "modified": "2025-11-26 10:39:09.274489",
+ "modified_by": "Administrator",
+ "module": "Kiwi Food Stuff",
+ "name": "Sales by Salesman",
+ "number_of_groups": 0,
+ "owner": "Administrator",
+ "parent_document_type": "",
+ "report_name": "",
+ "roles": [
+  {
+   "role": "Sales User"
+  }
+ ],
+ "show_values_over_chart": 0,
+ "source": "",
+ "time_interval": "Daily",
+ "timeseries": 1,
+ "timespan": "Last Week",
+ "type": "Bar",
+ "use_report_chart": 0,
+ "value_based_on": "base_grand_total",
+ "x_field": "",
+ "y_axis": []
+}
