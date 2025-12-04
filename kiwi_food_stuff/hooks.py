@@ -235,7 +235,16 @@ fixtures = [
             ["name", "in", ["Sales Invoice-custom_sales_person",
                             ]]
         ]
+    },
+    {
+    "doctype": "Property Setter",
+    "filters": [
+        ["doc_type", "=", "UOM Conversion Detail"],
+        ["property", "=", "precision"],
+        ["field_name", "=", "conversion_factor"]
+    ]
     }
+
 ]
 
 
