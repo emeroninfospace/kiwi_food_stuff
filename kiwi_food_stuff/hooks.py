@@ -43,7 +43,7 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+doctype_js = {"Item" : "public/js/item.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -233,17 +233,31 @@ fixtures = [
         "dt": "Custom Field",
         "filters": [
             ["name", "in", ["Sales Invoice-custom_sales_person",
+                            "UOM Conversion Detail-custom_unit_qty",
+                            "UOM Conversion Detail-custom_unit",
+                            "UOM Conversion Detail-custom_qty",
+                            "Payment Entry-custom_note"
                             ]]
         ]
     },
     {
-    "doctype": "Property Setter",
+    "dt": "Property Setter",
     "filters": [
-        ["doc_type", "=", "UOM Conversion Detail"],
-        ["property", "=", "precision"],
-        ["field_name", "=", "conversion_factor"]
+        [
+            "name",
+            "in",
+            [
+                "Sales Invoice-update_stock-default",
+                "UOM Conversion Detail-main-field_order",
+                "UOM Conversion Detail-conversion_factor-precision",
+                "Purchase Invoice-update_stock-default",
+                "Sales Invoice-naming_series-options",
+                "Payment Entry-main-field_order"
+
+            ]
+        ]
     ]
-    }
+    },
 
 ]
 
