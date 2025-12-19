@@ -1,112 +1,117 @@
-
 (function() {
-    if (typeof frappe !== 'undefined' && frappe.model && frappe.model.set_value) {
+    'use strict';
+    
+    const TIMEOUTS = {
+        ITEM_CODE_UPDATE: 300,
+        USER_EDIT_EXPIRY: 10000,
+        QTY_SUPPRESS: 600,
+        UOM_UPDATE: 200
+    };
+    
+    // Helper functions
+    const getRow = (cdt, cdn) => {
+        return (typeof locals !== 'undefined' && locals[cdt] && locals[cdn]) ? locals[cdt][cdn] : null;
+    };
+    
+    const isUserEditingField = (cdn, fieldname) => {
+        const active = document?.activeElement;
+        if (!active?.closest) return false;
+        return active.closest(`[data-name="${cdn}"]`) && 
+               active.closest(`[data-fieldname="${fieldname}"]`);
+    };
+    
+    const calculateStockUomRate = (priceListRate, conversionFactor) => {
+        return conversionFactor && conversionFactor !== 1 
+            ? priceListRate / conversionFactor 
+            : priceListRate;
+    };
+    
+    const clearFlagAfterDelay = (row, flag, delay) => {
+        setTimeout(() => {
+            if (row && row[flag]) delete row[flag];
+        }, delay);
+    };
+    
+    // Override frappe.model.set_value
+    if (typeof frappe !== 'undefined' && frappe.model?.set_value) {
         const _orig_set_value = frappe.model.set_value;
         frappe.model.set_value = function(cdt, cdn, field, value) {
-            try {
-                const row = (typeof locals !== 'undefined' && locals[cdt] && locals[cdn]) ? locals[cdt][cdn] : (locals[cdt] ? locals[cdt][cdn] : null);
-                if (field === 'price_list_rate') {
-                    if (row && row._suppress_price_update) {
-                        return; 
-                    }
-                    if (row && row._user_edited_price) {
-                        const now = Date.now();
-                        if (now - row._user_edited_price < 10000) { 
-                            return;
-                        } else {
-                            delete row._user_edited_price;
-                        }
+            if (field === 'price_list_rate') {
+                const row = getRow(cdt, cdn);
+                if (row) {
+                    if (row._suppress_price_update) return;
+                    
+                    if (row._user_edited_price) {
+                        const timeSinceEdit = Date.now() - row._user_edited_price;
+                        if (timeSinceEdit < TIMEOUTS.USER_EDIT_EXPIRY) return;
+                        delete row._user_edited_price;
                     }
                 }
-            } catch (e) {}
+            }
             return _orig_set_value.apply(this, arguments);
         };
     }
-})();
-
-frappe.ui.form.on('Sales Invoice Item', {
-    item_code: function(frm, cdt, cdn) {
-        let row = locals[cdt][cdn];
-        setTimeout(() => {
-            // Do not overwrite stock_uom_rate if user manually edited it recently
-            if (!row._user_edited_stock_rate) {
-                row.stock_uom_rate = row.price_list_rate;
-            } else {
-                console.log('[kiwi DEBUG] Skipping item_code stock_uom_rate overwrite (user edited)');
-            }
-        }, 300);
-    },
     
-    price_list_rate: function(frm, cdt, cdn) {
-        let row = locals[cdt][cdn];
-        try {
-            const active = document && document.activeElement;
-            if (active) {
-                const inRow = active.closest && active.closest(`[data-name="${cdn}"]`);
-                const isField = active.closest && active.closest(`[data-fieldname="price_list_rate"]`);
-                if (inRow && isField) {
-                    row._user_edited_price = Date.now();
-                    console.log('[kiwi DEBUG] user edited price_list_rate on', cdt, cdn);
+    // Form event handlers
+    frappe.ui.form.on('Sales Invoice Item', {
+        item_code: function(frm, cdt, cdn) {
+            const row = locals[cdt][cdn];
+            setTimeout(() => {
+                if (!row._user_edited_stock_rate && row.price_list_rate) {
+                    row.stock_uom_rate = row.price_list_rate;
                 }
-            }
-        } catch (e) {}
-
-        // Only auto-update stock_uom_rate if the user hasn't manually edited it.
-        if (!row._user_edited_stock_rate) {
-            if (row.conversion_factor && row.conversion_factor != 1) {
-                row.stock_uom_rate = row.price_list_rate / row.conversion_factor;
-            } else {
-                row.stock_uom_rate = row.price_list_rate;
-            }
-        } else {
-            console.log('[kiwi DEBUG] Preserving user-edited stock_uom_rate for', cdt, cdn);
-        }
-    },
-
-    stock_uom_rate: function(frm, cdt, cdn) {
-        let row = locals[cdt][cdn];
-        try {
-            row._user_edited_stock_rate = Date.now();
-        } catch (e) {}
-        setTimeout(() => {
-            try { delete row._user_edited_stock_rate; } catch (e) {}
-        }, 10000);
-    },
-
-    qty: function(frm, cdt, cdn) {
-        let row = locals[cdt][cdn];
-        row._suppress_price_update = true;
-        setTimeout(() => {
-            try {
-                delete row._suppress_price_update;
-            } catch (e) {}
-        }, 600);
-    },
-
-    uom: function(frm, cdt, cdn) {
-        let row = locals[cdt][cdn];
+            }, TIMEOUTS.ITEM_CODE_UPDATE);
+        },
         
-        frappe.call({
-            method: "kiwi_food_stuff.events.sales_invoice.get_conversion_factor",
-            args: {
-                item_code: row.item_code,
-                uom: row.uom
-            },
-            callback: function(r) {
-                if (r.message) {
-                    let new_conversion = r.message;
+        price_list_rate: function(frm, cdt, cdn) {
+            const row = locals[cdt][cdn];
+            
+            // Mark as user-edited if currently focused on this field
+            if (isUserEditingField(cdn, 'price_list_rate')) {
+                row._user_edited_price = Date.now();
+            }
+            
+            // Auto-update stock_uom_rate if not manually edited
+            if (!row._user_edited_stock_rate) {
+                row.stock_uom_rate = calculateStockUomRate(row.price_list_rate, row.conversion_factor);
+            }
+        },
+        
+        stock_uom_rate: function(frm, cdt, cdn) {
+            const row = locals[cdt][cdn];
+            row._user_edited_stock_rate = Date.now();
+            clearFlagAfterDelay(row, '_user_edited_stock_rate', TIMEOUTS.USER_EDIT_EXPIRY);
+        },
+        
+        qty: function(frm, cdt, cdn) {
+            const row = locals[cdt][cdn];
+            row._suppress_price_update = true;
+            clearFlagAfterDelay(row, '_suppress_price_update', TIMEOUTS.QTY_SUPPRESS);
+        },
+        
+        uom: function(frm, cdt, cdn) {
+            const row = locals[cdt][cdn];
+            
+            frappe.call({
+                method: "kiwi_food_stuff.events.sales_invoice.get_conversion_factor",
+                args: {
+                    item_code: row.item_code,
+                    uom: row.uom
+                },
+                callback: function(r) {
+                    if (!r.message) return;
                     
-                    frappe.model.set_value(cdt, cdn, 'conversion_factor', new_conversion);
+                    const newConversion = r.message;
+                    frappe.model.set_value(cdt, cdn, 'conversion_factor', newConversion);
                     
                     if (row.stock_uom_rate) {
-                        let new_rate = row.stock_uom_rate * new_conversion;
-                        
+                        const newRate = row.stock_uom_rate * newConversion;
                         setTimeout(() => {
-                            frappe.model.set_value(cdt, cdn, 'price_list_rate', new_rate);
-                        }, 200);
+                            frappe.model.set_value(cdt, cdn, 'price_list_rate', newRate);
+                        }, TIMEOUTS.UOM_UPDATE);
                     }
                 }
-            }
-        });
-    }
-});
+            });
+        }
+    });
+})();
