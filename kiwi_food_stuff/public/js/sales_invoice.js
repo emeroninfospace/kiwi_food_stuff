@@ -6,9 +6,16 @@
             try {
                 const row = (typeof locals !== 'undefined' && locals[cdt] && locals[cdn]) ? locals[cdt][cdn] : (locals[cdt] ? locals[cdt][cdn] : null);
                 if (field === 'price_list_rate') {
-   
                     if (row && row._suppress_price_update) {
                         return; 
+                    }
+                    if (row && row._user_edited_price) {
+                        const now = Date.now();
+                        if (now - row._user_edited_price < 10000) { 
+                            return;
+                        } else {
+                            delete row._user_edited_price;
+                        }
                     }
                 }
             } catch (e) {}
@@ -27,6 +34,18 @@ frappe.ui.form.on('Sales Invoice Item', {
     
     price_list_rate: function(frm, cdt, cdn) {
         let row = locals[cdt][cdn];
+        try {
+            const active = document && document.activeElement;
+            if (active) {
+                const inRow = active.closest && active.closest(`[data-name="${cdn}"]`);
+                const isField = active.closest && active.closest(`[data-fieldname="price_list_rate"]`);
+                if (inRow && isField) {
+                    row._user_edited_price = Date.now();
+                    console.log('[kiwi DEBUG] user edited price_list_rate on', cdt, cdn);
+                }
+            }
+        } catch (e) {}
+
         if (row.conversion_factor && row.conversion_factor != 1) {
             row.stock_uom_rate = row.price_list_rate / row.conversion_factor;
         } else {
