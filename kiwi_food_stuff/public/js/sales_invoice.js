@@ -28,7 +28,12 @@ frappe.ui.form.on('Sales Invoice Item', {
     item_code: function(frm, cdt, cdn) {
         let row = locals[cdt][cdn];
         setTimeout(() => {
-            row.stock_uom_rate = row.price_list_rate;
+            // Do not overwrite stock_uom_rate if user manually edited it recently
+            if (!row._user_edited_stock_rate) {
+                row.stock_uom_rate = row.price_list_rate;
+            } else {
+                console.log('[kiwi DEBUG] Skipping item_code stock_uom_rate overwrite (user edited)');
+            }
         }, 300);
     },
     
@@ -46,11 +51,26 @@ frappe.ui.form.on('Sales Invoice Item', {
             }
         } catch (e) {}
 
-        if (row.conversion_factor && row.conversion_factor != 1) {
-            row.stock_uom_rate = row.price_list_rate / row.conversion_factor;
+        // Only auto-update stock_uom_rate if the user hasn't manually edited it.
+        if (!row._user_edited_stock_rate) {
+            if (row.conversion_factor && row.conversion_factor != 1) {
+                row.stock_uom_rate = row.price_list_rate / row.conversion_factor;
+            } else {
+                row.stock_uom_rate = row.price_list_rate;
+            }
         } else {
-            row.stock_uom_rate = row.price_list_rate;
+            console.log('[kiwi DEBUG] Preserving user-edited stock_uom_rate for', cdt, cdn);
         }
+    },
+
+    stock_uom_rate: function(frm, cdt, cdn) {
+        let row = locals[cdt][cdn];
+        try {
+            row._user_edited_stock_rate = Date.now();
+        } catch (e) {}
+        setTimeout(() => {
+            try { delete row._user_edited_stock_rate; } catch (e) {}
+        }, 10000);
     },
 
     qty: function(frm, cdt, cdn) {
