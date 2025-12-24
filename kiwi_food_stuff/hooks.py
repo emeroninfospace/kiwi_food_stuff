@@ -254,7 +254,8 @@ fixtures = [
                 "Purchase Invoice-update_stock-default",
                 "Sales Invoice-naming_series-options",
                 "Payment Entry-main-field_order",
-                "Sales Invoice Item-price_list_rate-read_only"
+                "Sales Invoice Item-price_list_rate-read_only",
+                "UOM Conversion Detail-conversion_factor-read_only"
 
             ]
         ]
