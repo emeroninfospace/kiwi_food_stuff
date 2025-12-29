@@ -1,0 +1,52 @@
+{
+ "charts": [
+  {
+   "chart_name": "Sales by Salesman",
+   "label": "Daily Sales"
+  }
+ ],
+ "content": "[{\"id\":\"sFfHFgpBsu\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">POS</span>\",\"col\":12}},{\"id\":\"EUWyGkW__o\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"POS\",\"col\":3}},{\"id\":\"1dG4S8DqT1\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Daily Sales\",\"col\":12}}]",
+ "creation": "2025-12-29 17:50:09.309797",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "color-monthly-rank",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "POS",
+ "links": [],
+ "modified": "2025-12-29 17:59:36.426004",
+ "modified_by": "Administrator",
+ "module": "Kiwi Food Stuff",
+ "name": "POS",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [
+  {
+   "role": "Sales User"
+  },
+  {
+   "role": "Accounts Manager"
+  },
+  {
+   "role": "Sales Manager"
+  }
+ ],
+ "sequence_id": 1.0,
+ "shortcuts": [
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "POS",
+   "link_to": "point-of-sale",
+   "type": "Page"
+  }
+ ],
+ "title": "POS"
+}
