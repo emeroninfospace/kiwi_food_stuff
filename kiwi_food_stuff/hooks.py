@@ -243,26 +243,18 @@ fixtures = [
                             ]]
         ]
     },
-    # {
-    # "dt": "Property Setter",
-    # "filters": [
-    #     [
-    #         "name",
-    #         "in",
-    #         [
-    #             "Sales Invoice-update_stock-default",
-    #             "UOM Conversion Detail-main-field_order",
-    #             "UOM Conversion Detail-conversion_factor-precision",
-    #             "Purchase Invoice-update_stock-default",
-    #             "Sales Invoice-naming_series-options",
-    #             "Payment Entry-main-field_order",
-    #             "Sales Invoice Item-price_list_rate-read_only",
-    #             "UOM Conversion Detail-conversion_factor-read_only"
-
-    #         ]
-    #     ]
-    # ]
-    # },
+    {
+    "dt": "Property Setter",
+    "filters": [
+        [
+            "name",
+            "in",
+            [
+                "Sales Invoice-main-field_order",
+            ]
+        ]
+    ]
+    }
 
 ]
 
