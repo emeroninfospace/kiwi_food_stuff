@@ -138,13 +138,11 @@ doctype_js = {"Item" : "public/js/item.js",
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	"Sales Invoice": {
+        "after_insert": "kiwi_food_stuff.events.sales_invoice.add_pos_sales_person"
+    }
+}
 
 # Scheduled Tasks
 # ---------------
