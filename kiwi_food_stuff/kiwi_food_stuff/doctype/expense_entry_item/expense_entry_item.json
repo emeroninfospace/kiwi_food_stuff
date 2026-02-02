@@ -42,10 +42,10 @@
   {
    "columns": 1,
    "fieldname": "party_type",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Party Type",
-   "options": "\nSupplier\nEmployee\nCustomer"
+   "options": "DocType"
   },
   {
    "columns": 1,
@@ -127,7 +127,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-01-29 15:30:53.956030",
+ "modified": "2026-02-02 15:37:09.144036",
  "modified_by": "Administrator",
  "module": "Kiwi Food Stuff",
  "name": "Expense Entry Item",
