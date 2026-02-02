@@ -21,6 +21,16 @@ frappe.ui.form.on("Expense Entry", {
                 }
             };
         });
+        frm.set_query("party_type", "items", function (doc, cdt, cdn) {
+            const row = locals[cdt][cdn];
+            return {
+                query: "erpnext.setup.doctype.party_type.party_type.get_party_type",
+                filters: {
+                    account: row.account,
+                    company: doc.company
+                },
+            };
+        });
         
         if (frm.doc.docstatus === 1 && !frm.is_new() && !frm.doc.journal_entry) {
             frm.add_custom_button(__("Make Payment"), function() {
