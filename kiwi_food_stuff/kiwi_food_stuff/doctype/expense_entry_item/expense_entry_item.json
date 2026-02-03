@@ -95,7 +95,6 @@
   {
    "fieldname": "tax_account",
    "fieldtype": "Link",
-   "in_list_view": 1,
    "label": "Tax Account",
    "options": "Account"
   },

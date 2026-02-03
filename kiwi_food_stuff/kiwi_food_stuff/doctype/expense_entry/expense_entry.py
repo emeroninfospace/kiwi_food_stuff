@@ -65,7 +65,7 @@ class ExpenseEntry(Document):
 
             if row.vat_amount > 0:
                 je.append("accounts", {
-                    "account": "VAT 5% - PT",
+                    "account": row.tax_account,
                     "debit_in_account_currency": row.vat_amount
                 })
 
