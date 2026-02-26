@@ -236,8 +236,8 @@ fixtures = [
                             "UOM Conversion Detail-custom_unit",
                             "UOM Conversion Detail-custom_qty",
                             "Payment Entry-custom_note",
-                            "POS Invoice-custom_type"
-  
+                            "POS Invoice-custom_type",
+                            "Payment Entry-custom_pdc_status"
                             ]]
         ]
     },
