@@ -2,8 +2,7 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on("Expense Entry", {
-    refresh: function(frm) {
-        // Set query filters for account and account_from fields in items table
+    onload: function(frm) {
         frm.set_query("account", "items", function() {
             return {
                 filters: {
@@ -21,6 +20,19 @@ frappe.ui.form.on("Expense Entry", {
                 }
             };
         });
+        frm.set_query("party_type", "items", function (doc, cdt, cdn) {
+            const row = locals[cdt][cdn];
+            return {
+                query: "erpnext.setup.doctype.party_type.party_type.get_party_type",
+                filters: {
+                    account: row.account,
+                    company: doc.company
+                },
+            };
+        });
+    },
+    refresh: function(frm) {
+        // Set query filters for account and account_from fields in items table
         
         if (frm.doc.docstatus === 1 && !frm.is_new() && !frm.doc.journal_entry) {
             frm.add_custom_button(__("Make Payment"), function() {
