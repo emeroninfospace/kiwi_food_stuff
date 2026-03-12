@@ -46,7 +46,6 @@ def get_data(filters):
                 "si.posting_date BETWEEN %(from_date)s AND %(to_date)s",
                 "si.company = %(company)s",
                 "si.docstatus = 1",
-                "gle.is_cancelled = 0"
             ]
 
             params = {
@@ -82,18 +81,13 @@ def get_data(filters):
                     si.name AS voucher_no,
                     si.customer,
                     sii.item_name,
-                    gle.debit AS amount,
+                    si.grand_total AS amount,
                     st.sales_person
                 FROM `tabSales Invoice` si
-                INNER JOIN `tabGL Entry` gle 
-                    ON gle.voucher_type = 'Sales Invoice'
-                    AND gle.voucher_no = si.name
-                    AND gle.account = %(receivable_account)s
-                    AND gle.is_cancelled = 0
                 LEFT JOIN `tabSales Invoice Item` sii ON sii.parent = si.name
                 LEFT JOIN `tabSales Team` st ON st.parent = si.name
                 WHERE {sql_cond}
-                ORDER BY si.posting_date, si.name, sii.idx
+                ORDER BY si.posting_date,    si.name, sii.idx
             """, params, as_dict=True)
 
             grouped = {}
