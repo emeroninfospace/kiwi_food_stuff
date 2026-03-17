@@ -63,3 +63,30 @@ def add_pos_sales_person(doc, method=None):
         "allocated_percentage": 100,
     })
     doc.db_update()
+
+
+# Add sales person to the standalone invoice
+def set_sales_person(doc, method=None):
+    if doc.is_pos:
+        return
+
+    if doc.sales_team:
+        return
+
+    user = frappe.session.user
+
+    if user in ("Guest", "Administrator"):
+        return
+
+    employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
+    if not employee:
+        return
+
+    sales_person = frappe.db.get_value("Sales Person", {"employee": employee}, "name")
+    if not sales_person:
+        return
+
+    doc.append("sales_team", {
+        "sales_person": sales_person,
+        "allocated_percentage": 100
+    })
