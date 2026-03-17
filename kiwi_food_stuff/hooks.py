@@ -141,7 +141,8 @@ doctype_js = {"Item" : "public/js/item.js",
 
 doc_events = {
 	"Sales Invoice": {
-        "after_insert": "kiwi_food_stuff.events.sales_invoice.add_pos_sales_person"
+        "after_insert": "kiwi_food_stuff.events.sales_invoice.add_pos_sales_person",
+        "before_insert": "kiwi_food_stuff.events.sales_invoice.set_sales_person"
     }
 }
 
