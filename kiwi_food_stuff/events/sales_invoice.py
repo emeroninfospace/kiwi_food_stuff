@@ -13,6 +13,19 @@ def get_conversion_factor(item_code, uom):
     else:
         return 1
 
+# for triggering price list rate
+def validate_sales_invoice(doc, method):
+    for item in doc.items:
+        if item.price_list_rate and item.conversion_factor:
+            stock_rate = item.price_list_rate / item.conversion_factor
+
+            # Recalculate correctly
+            final_rate = stock_rate * item.conversion_factor
+
+            # FORCE correct value
+            item.price_list_rate = final_rate
+            item.rate = final_rate
+
 
 # ADD sales person to sales invoice from POS profile
 def add_pos_sales_person(doc, method=None):
