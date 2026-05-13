@@ -1,0 +1,72 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-05-13 09:47:11.827310",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "role",
+  "delete_permission",
+  "column_break_wywh",
+  "credit_note_role",
+  "credit_note_submit_permission"
+ ],
+ "fields": [
+  {
+   "fieldname": "role",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Role",
+   "options": "Role"
+  },
+  {
+   "default": "0",
+   "fieldname": "delete_permission",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Delete Permission"
+  },
+  {
+   "fieldname": "column_break_wywh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "credit_note_role",
+   "fieldtype": "Link",
+   "label": "Credit Note Role",
+   "options": "Role"
+  },
+  {
+   "default": "0",
+   "fieldname": "credit_note_submit_permission",
+   "fieldtype": "Check",
+   "label": "Credit Note Submit Permission"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-05-13 11:53:19.213217",
+ "modified_by": "Administrator",
+ "module": "Kiwi Food Stuff",
+ "name": "Kiwi Food Stuff Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

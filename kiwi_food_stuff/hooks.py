@@ -123,9 +123,13 @@ doctype_js = {"Item" : "public/js/item.js",
 # 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
 # }
 #
-# has_permission = {
-# 	"Event": "frappe.desk.doctype.event.event.has_permission",
-# }
+has_permission = {
+	"*": "kiwi_food_stuff.permissions.has_permission",
+}
+
+extend_bootinfo = [
+	"kiwi_food_stuff.permissions.extend_bootinfo",
+]
 
 # DocType Class
 # ---------------
@@ -176,9 +180,10 @@ doc_events = {
 # Overriding Methods
 # ------------------------------
 #
-# override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "kiwi_food_stuff.event.get_events"
-# }
+override_whitelisted_methods = {
+	"frappe.client.delete": "kiwi_food_stuff.permissions.delete_doc",
+	"frappe.desk.reportview.delete_items": "kiwi_food_stuff.permissions.delete_items",
+}
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
