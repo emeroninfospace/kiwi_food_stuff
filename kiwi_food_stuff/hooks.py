@@ -183,6 +183,7 @@ doc_events = {
 override_whitelisted_methods = {
 	"frappe.client.delete": "kiwi_food_stuff.permissions.delete_doc",
 	"frappe.desk.reportview.delete_items": "kiwi_food_stuff.permissions.delete_items",
+	"frappe.desk.form.save.savedocs": "kiwi_food_stuff.permissions.savedocs",
 }
 #
 # each overriding function accepts a `data` argument;
