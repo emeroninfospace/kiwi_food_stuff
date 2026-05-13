@@ -1,4 +1,17 @@
 import frappe
+from frappe import _
+
+
+SETTINGS_DOCTYPE = "Kiwi Food Stuff Settings"
+STANDARD_SELLING_PRICE_LIST = "Standard Selling"
+PRICE_VALIDATION_BYPASS_ROLE = "Super Admin"
+
+
+def to_float(value):
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0
 
 @frappe.whitelist()
 def get_conversion_factor(item_code, uom):
@@ -25,6 +38,105 @@ def validate_sales_invoice(doc, method):
             # FORCE correct value
             item.price_list_rate = final_rate
             item.rate = final_rate
+
+
+def validate_sales_invoice_price_list_rates(doc, method=None):
+    if is_price_list_rate_validation_bypassed():
+        return
+
+    messages = []
+
+    for item in doc.items:
+        messages.extend(
+            get_price_list_rate_validation_messages(
+                item_code=item.item_code,
+                price_list_rate=item.price_list_rate,
+                warehouse=item.warehouse,
+                row_idx=item.idx,
+            )
+        )
+
+    if messages:
+        frappe.throw("<br>".join(messages), title=_("Invalid Price List Rate"))
+
+
+def get_price_list_rate_validation_messages(item_code=None, price_list_rate=None, warehouse=None, row_idx=None):
+    if not item_code or price_list_rate in (None, ""):
+        return []
+
+    messages = []
+    item_rate = to_float(price_list_rate)
+    row_label = _("Row {0}: ").format(row_idx) if row_idx else ""
+
+    standard_selling_rate = get_standard_selling_rate(item_code)
+    if standard_selling_rate is not None and item_rate < to_float(standard_selling_rate):
+        messages.append(
+            _(
+                "{0}Price List Rate {1} cannot be less than Standard Selling rate {2} for item {3}."
+            ).format(row_label, item_rate, to_float(standard_selling_rate), frappe.bold(item_code))
+        )
+
+    valuation_rate = get_bin_valuation_rate(item_code, warehouse)
+    if valuation_rate is not None and item_rate < to_float(valuation_rate):
+        messages.append(
+            _(
+                "{0}Price List Rate {1} cannot be less than valuation rate {2} for item {3} in warehouse {4}."
+            ).format(row_label, item_rate, to_float(valuation_rate), frappe.bold(item_code), frappe.bold(warehouse))
+        )
+
+    return messages
+
+
+def get_standard_selling_rate(item_code):
+    item_prices = frappe.get_all(
+        "Item Price",
+        filters={
+            "item_code": item_code,
+            "price_list": STANDARD_SELLING_PRICE_LIST,
+        },
+        fields=["price_list_rate"],
+        order_by="valid_from desc, modified desc",
+        limit=1,
+    )
+
+    if not item_prices:
+        return None
+
+    return item_prices[0].price_list_rate
+
+
+def get_bin_valuation_rate(item_code, warehouse):
+    if not warehouse:
+        return None
+
+    return frappe.db.get_value(
+        "Bin",
+        {
+            "item_code": item_code,
+            "warehouse": warehouse,
+        },
+        "valuation_rate",
+    )
+
+
+def is_price_list_rate_validation_bypassed(user=None):
+    user = user or frappe.session.user
+
+    if not user or user == "Guest":
+        return False
+
+    settings = get_settings()
+    if not settings or not to_float(settings.sales_invoice_price_list_permission):
+        return False
+
+    return PRICE_VALIDATION_BYPASS_ROLE in frappe.get_roles(user)
+
+
+def get_settings():
+    try:
+        return frappe.get_cached_doc(SETTINGS_DOCTYPE)
+    except frappe.DoesNotExistError:
+        return None
 
 
 # ADD sales person to sales invoice from POS profile
