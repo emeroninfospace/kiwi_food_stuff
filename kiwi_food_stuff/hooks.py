@@ -123,9 +123,13 @@ doctype_js = {"Item" : "public/js/item.js",
 # 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
 # }
 #
-# has_permission = {
-# 	"Event": "frappe.desk.doctype.event.event.has_permission",
-# }
+has_permission = {
+	"*": "kiwi_food_stuff.permissions.has_permission",
+}
+
+extend_bootinfo = [
+	"kiwi_food_stuff.permissions.extend_bootinfo",
+]
 
 # DocType Class
 # ---------------
@@ -143,7 +147,8 @@ doc_events = {
 	"Sales Invoice": {
         "after_insert": "kiwi_food_stuff.events.sales_invoice.add_pos_sales_person",
         "before_insert": "kiwi_food_stuff.events.sales_invoice.set_sales_person",
-        "validate": "kiwi_food_stuff.events.sales_invoice.validate_sales_invoice"
+        "validate": "kiwi_food_stuff.events.sales_invoice.validate_sales_invoice",
+        "before_submit": "kiwi_food_stuff.events.sales_invoice.validate_sales_invoice_price_list_rates"
     }
 }
 
@@ -176,9 +181,11 @@ doc_events = {
 # Overriding Methods
 # ------------------------------
 #
-# override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "kiwi_food_stuff.event.get_events"
-# }
+override_whitelisted_methods = {
+	"frappe.client.delete": "kiwi_food_stuff.permissions.delete_doc",
+	"frappe.desk.reportview.delete_items": "kiwi_food_stuff.permissions.delete_items",
+	"frappe.desk.form.save.savedocs": "kiwi_food_stuff.permissions.savedocs",
+}
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,

@@ -133,6 +133,77 @@
         return stockRate * conv;
     };
 
+    const rememberNormalSubmitPermission = (frm) => {
+        if (!frm.perm?.[0]) return;
+
+        if (frm._kiwi_normal_submit_permission === undefined) {
+            frm._kiwi_normal_submit_permission = frm.perm[0].submit;
+        }
+    };
+
+    const refreshToolbar = (frm) => {
+        if (frm.toolbar) {
+            frm.toolbar.refresh();
+        }
+    };
+
+    const restoreNormalSubmitPermission = (frm) => {
+        if (!frm.perm?.[0] || frm._kiwi_normal_submit_permission === undefined) return;
+
+        frm.perm[0].submit = frm._kiwi_normal_submit_permission;
+        refreshToolbar(frm);
+    };
+
+    const applyCreditNoteSubmitPermission = (frm) => {
+        if (!frm.perm?.[0]) return;
+
+        rememberNormalSubmitPermission(frm);
+
+        if (!cint(frm.doc.is_return) || cint(frm.doc.docstatus) !== 0) {
+            restoreNormalSubmitPermission(frm);
+            return;
+        }
+
+        frm.perm[0].submit = 0;
+        refreshToolbar(frm);
+
+        frm._kiwi_credit_note_submit_request = (frm._kiwi_credit_note_submit_request || 0) + 1;
+        const requestId = frm._kiwi_credit_note_submit_request;
+
+        frappe.call({
+            method: 'kiwi_food_stuff.permissions.can_submit_credit_note',
+            args: {
+                docname: frm.doc.name
+            },
+            callback(r) {
+                if (requestId !== frm._kiwi_credit_note_submit_request) return;
+
+                if (!cint(frm.doc.is_return) || cint(frm.doc.docstatus) !== 0) {
+                    restoreNormalSubmitPermission(frm);
+                    return;
+                }
+
+                if (r.message === null || r.message === undefined) {
+                    restoreNormalSubmitPermission(frm);
+                    return;
+                }
+
+                frm.perm[0].submit = r.message ? 1 : 0;
+                refreshToolbar(frm);
+            }
+        });
+    };
+
+    frappe.ui.form.on('Sales Invoice', {
+        refresh(frm) {
+            applyCreditNoteSubmitPermission(frm);
+        },
+
+        is_return(frm) {
+            applyCreditNoteSubmitPermission(frm);
+        }
+    });
+
     frappe.ui.form.on('Sales Invoice Item', {
         item_code(frm, cdt, cdn) {
             const row = getRow(cdt, cdn);
@@ -147,11 +218,13 @@
 
         price_list_rate(frm, cdt, cdn) {
             const row = getRow(cdt, cdn);
-            if (!row || !row.conversion_factor) return;
+            if (!row) return;
 
             row.ignore_pricing_rule = 1;
 
-            row.stock_uom_rate = toStockRate(row.price_list_rate, row.conversion_factor);
+            if (row.conversion_factor) {
+                row.stock_uom_rate = toStockRate(row.price_list_rate, row.conversion_factor);
+            }
         },
 
         stock_uom_rate(frm, cdt, cdn) {
