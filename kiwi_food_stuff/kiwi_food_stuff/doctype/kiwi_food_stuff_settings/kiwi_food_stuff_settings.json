@@ -60,7 +60,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-05-13 16:20:08.050940",
+ "modified": "2026-05-13 18:04:03.210862",
  "modified_by": "Administrator",
  "module": "Kiwi Food Stuff",
  "name": "Kiwi Food Stuff Settings",
@@ -73,6 +73,17 @@
    "print": 1,
    "read": 1,
    "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Super Admin",
+   "select": 1,
    "share": 1,
    "write": 1
   }
