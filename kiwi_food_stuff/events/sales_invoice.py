@@ -50,6 +50,7 @@ def validate_sales_invoice_price_list_rates(doc, method=None):
         messages.extend(
             get_price_list_rate_validation_messages(
                 item_code=item.item_code,
+                uom=item.uom,
                 price_list_rate=item.price_list_rate,
                 warehouse=item.warehouse,
                 row_idx=item.idx,
@@ -60,7 +61,7 @@ def validate_sales_invoice_price_list_rates(doc, method=None):
         frappe.throw("<br>".join(messages), title=_("Invalid Price List Rate"))
 
 
-def get_price_list_rate_validation_messages(item_code=None, price_list_rate=None, warehouse=None, row_idx=None):
+def get_price_list_rate_validation_messages(item_code=None, price_list_rate=None, uom=None, warehouse=None, row_idx=None):
     if not item_code or price_list_rate in (None, ""):
         return []
 
@@ -68,7 +69,7 @@ def get_price_list_rate_validation_messages(item_code=None, price_list_rate=None
     item_rate = to_float(price_list_rate)
     row_label = _("Row {0}: ").format(row_idx) if row_idx else ""
 
-    standard_selling_rate = get_standard_selling_rate(item_code)
+    standard_selling_rate = get_standard_selling_rate(item_code, uom)
     if standard_selling_rate is not None and item_rate < to_float(standard_selling_rate):
         messages.append(
             _(
@@ -87,11 +88,12 @@ def get_price_list_rate_validation_messages(item_code=None, price_list_rate=None
     return messages
 
 
-def get_standard_selling_rate(item_code):
+def get_standard_selling_rate(item_code, uom):
     item_prices = frappe.get_all(
         "Item Price",
         filters={
             "item_code": item_code,
+            "uom": uom,
             "price_list": STANDARD_SELLING_PRICE_LIST,
         },
         fields=["price_list_rate"],
