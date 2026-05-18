@@ -148,8 +148,8 @@ doc_events = {
         "after_insert": "kiwi_food_stuff.events.sales_invoice.add_pos_sales_person",
         "before_insert": "kiwi_food_stuff.events.sales_invoice.set_sales_person",
         "validate": "kiwi_food_stuff.events.sales_invoice.validate_sales_invoice",
-        "before_submit": "kiwi_food_stuff.events.sales_invoice.validate_sales_invoice_price_list_rates"
-    }
+        "before_submit": "kiwi_food_stuff.events.sales_invoice.validate_sales_invoice_price_list_rates",
+    },
 }
 
 # Scheduled Tasks
