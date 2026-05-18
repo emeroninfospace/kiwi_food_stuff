@@ -237,35 +237,35 @@
             frappe.model.set_value(cdt, cdn, 'price_list_rate', newRate);
         },
 
-        uom(frm, cdt, cdn) {
-            const row = getRow(cdt, cdn);
-            if (!row || !row.item_code || !row.uom) return;
+        // uom(frm, cdt, cdn) {
+        //     const row = getRow(cdt, cdn);
+        //     if (!row || !row.item_code || !row.uom) return;
 
-            row.ignore_pricing_rule = 1;
+        //     row.ignore_pricing_rule = 1;
 
-            frappe.call({
-                method: "kiwi_food_stuff.events.sales_invoice.get_conversion_factor",
-                args: {
-                    item_code: row.item_code,
-                    uom: row.uom
-                },
-                callback: function (r) {
-                    if (!r.message) return;
+        //     frappe.call({
+        //         method: "kiwi_food_stuff.events.sales_invoice.get_conversion_factor",
+        //         args: {
+        //             item_code: row.item_code,
+        //             uom: row.uom
+        //         },
+        //         callback: function (r) {
+        //             if (!r.message) return;
 
-                    const conv = r.message;
+        //             const conv = r.message;
 
-                    frappe.model.set_value(cdt, cdn, 'conversion_factor', conv);
+        //             frappe.model.set_value(cdt, cdn, 'conversion_factor', conv);
 
-                    if (row.stock_uom_rate) {
-                        const newRate = toSellingRate(row.stock_uom_rate, conv);
+        //             if (row.stock_uom_rate) {
+        //                 const newRate = toSellingRate(row.stock_uom_rate, conv);
 
-                        setTimeout(() => {
-                            frappe.model.set_value(cdt, cdn, 'price_list_rate', newRate);
-                        }, 50);
-                    }
-                }
-            });
-        },
+        //                 setTimeout(() => {
+        //                     frappe.model.set_value(cdt, cdn, 'price_list_rate', newRate);
+        //                 }, 50);
+        //             }
+        //         }
+        //     });
+        // },
 
         qty(frm, cdt, cdn) {
             const row = getRow(cdt, cdn);
