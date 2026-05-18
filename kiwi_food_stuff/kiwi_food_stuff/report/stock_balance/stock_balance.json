@@ -1,0 +1,32 @@
+{
+ "add_total_row": 1,
+ "add_translate_data": 0,
+ "columns": [],
+ "creation": "2014-10-10 17:58:11.577901",
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "filters": [],
+ "idx": 21,
+ "is_standard": "Yes",
+ "letter_head": null,
+ "modified": "2026-05-18 11:48:23.994538",
+ "modified_by": "Administrator",
+ "module": "Kiwi Food Stuff",
+ "name": "Stock Balance",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "query": "",
+ "ref_doctype": "Stock Ledger Entry",
+ "report_name": "Stock Balance",
+ "report_type": "Script Report",
+ "roles": [
+  {
+   "role": "Stock User"
+  },
+  {
+   "role": "Accounts Manager"
+  }
+ ],
+ "timeout": 0
+}
