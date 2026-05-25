@@ -107,24 +107,24 @@ def get_price_list_rate_validation_messages(
             )
         )
 
-    bin_valuation = get_bin_valuation_rate_in_uom(
-        item_code, warehouse, uom, conversion_factor
-    )
-    if bin_valuation and item_rate < flt(bin_valuation["rate"]):
-        messages.append(
-            _(
-                "{0}Price List Rate {1} cannot be less than Bin valuation rate {2} "
-                "({3} per {4}) for item {5} in warehouse {6}."
-            ).format(
-                row_label,
-                item_rate,
-                flt(bin_valuation["rate"]),
-                flt(bin_valuation["stock_valuation_rate"]),
-                frappe.bold(bin_valuation["stock_uom"]),
-                frappe.bold(item_code),
-                frappe.bold(warehouse),
-            )
-        )
+    # bin_valuation = get_bin_valuation_rate_in_uom(
+    #     item_code, warehouse, uom, conversion_factor
+    # )
+    # if bin_valuation and item_rate < flt(bin_valuation["rate"]):
+    #     messages.append(
+    #         _(
+    #             "{0}Price List Rate {1} cannot be less than Bin valuation rate {2} "
+    #             "({3} per {4}) for item {5} in warehouse {6}."
+    #         ).format(
+    #             row_label,
+    #             item_rate,
+    #             flt(bin_valuation["rate"]),
+    #             flt(bin_valuation["stock_valuation_rate"]),
+    #             frappe.bold(bin_valuation["stock_uom"]),
+    #             frappe.bold(item_code),
+    #             frappe.bold(warehouse),
+    #         )
+    #     )
 
     return messages
 
