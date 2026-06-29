@@ -35,34 +35,14 @@ frappe.query_reports["Common Party Ledger"] = {
             reqd: 1
         },
         {
-            fieldname: "party_type",
-            label: __("Party Type"),
-            fieldtype: "Select",
-            options: "\nCustomer\nSupplier",
-            reqd: 0,
-            on_change: function() {
-                frappe.query_report.set_filter_value("party", "");
-                frappe.query_report.refresh();
-            }
-        },
-        {
             fieldname: "party",
-            label: __("Party"),
+            label: __("Common Party"),
             fieldtype: "Link",
             options: "Customer",
             reqd: 0,
             get_query: function() {
-                var party_type = frappe.query_report.get_filter_value("party_type");
-                if (!party_type) {
-                    frappe.msgprint(__("Please select Party Type first"));
-                    return;
-                }
                 return {
-                    doctype: party_type,
-                    query: "kiwi_food_stuff.kiwi_food_stuff.report.common_party_ledger.common_party_ledger.get_common_parties",
-                    filters: {
-                        party_type: party_type
-                    }
+                    query: "kiwi_food_stuff.kiwi_food_stuff.report.common_party_ledger.common_party_ledger.get_common_parties"
                 };
             },
             on_change: function() {

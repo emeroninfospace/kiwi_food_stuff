@@ -18,35 +18,28 @@ def execute(filters=None):
 @frappe.whitelist()
 @frappe.validate_and_sanitize_search_inputs
 def get_common_parties(doctype, txt, searchfield, start, page_len, filters):
-    party_type = filters.get("party_type") if filters else None
-
-    if not party_type:
-        return []
-
     txt_like = "%%%s%%" % (txt or "")
 
     common_parties = frappe.db.sql("""
-        SELECT DISTINCT
-            pl.primary_party as name,
-            pl.primary_party as party_name
-        FROM `tabParty Link` pl
-        WHERE
-            pl.primary_role = %(party_type)s
-            AND (%(txt)s = '' OR pl.primary_party LIKE %(txt_like)s)
+        SELECT name, party_name FROM (
+            SELECT
+                pl.primary_party as name,
+                CONCAT(pl.primary_party, ' (', pl.primary_role, ')') as party_name
+            FROM `tabParty Link` pl
+            WHERE (%(txt)s = '' OR pl.primary_party LIKE %(txt_like)s)
 
-        UNION
+            UNION
 
-        SELECT DISTINCT
-            pl.secondary_party as name,
-            pl.secondary_party as party_name
-        FROM `tabParty Link` pl
-        WHERE
-            pl.secondary_role = %(party_type)s
-            AND (%(txt)s = '' OR pl.secondary_party LIKE %(txt_like)s)
-
+            SELECT
+                pl.secondary_party as name,
+                CONCAT(pl.secondary_party, ' (', pl.secondary_role, ')') as party_name
+            FROM `tabParty Link` pl
+            WHERE (%(txt)s = '' OR pl.secondary_party LIKE %(txt_like)s)
+        ) parties
+        GROUP BY name
+        ORDER BY name
         LIMIT %(page_len)s OFFSET %(start)s
     """, {
-        "party_type": party_type,
         "txt": txt or "",
         "txt_like": txt_like,
         "page_len": page_len,
@@ -157,22 +150,17 @@ def get_conditions(filters):
     if filters.get("to_date"):
         conditions += " AND gle.posting_date <= %(to_date)s"
 
-    if filters.get("party_type"):
-        conditions += " AND gle.party_type = %(party_type)s"
-
     if filters.get("party"):
         conditions += """ AND (
             gle.party = %(party)s
             OR EXISTS (
                 SELECT 1 FROM `tabParty Link` pl
-                WHERE pl.primary_role = %(party_type)s
-                AND pl.primary_party = %(party)s
+                WHERE pl.primary_party = %(party)s
                 AND pl.secondary_party = gle.party
             )
             OR EXISTS (
                 SELECT 1 FROM `tabParty Link` pl
-                WHERE pl.secondary_role = %(party_type)s
-                AND pl.secondary_party = %(party)s
+                WHERE pl.secondary_party = %(party)s
                 AND pl.primary_party = gle.party
             )
         )"""
