@@ -2,6 +2,8 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe.utils import flt
+
 
 def execute(filters=None):
     filters = filters or {}
@@ -52,30 +54,29 @@ def get_common_parties(doctype, txt, searchfield, start, page_len, filters):
 def get_columns():
     return [
         {
-            "label": "Posting Date",
+            "label": "Date",
             "fieldname": "posting_date",
             "fieldtype": "Date",
-            "width": 100
-        },
-        {
-            "label": "Voucher Type",
-            "fieldname": "voucher_type",
-            "fieldtype": "Data",
             "width": 130
         },
         {
-            "label": "Voucher No",
+            "label": "Particulars",
+            "fieldname": "particulars",
+            "fieldtype": "Data",
+            "width": 200
+        },
+        {
+            "label": "Vch Type",
+            "fieldname": "voucher_type",
+            "fieldtype": "Data",
+            "width": 200
+        },
+        {
+            "label": "Vch No.",
             "fieldname": "voucher_no",
             "fieldtype": "Dynamic Link",
             "options": "voucher_type",
-            "width": 180
-        },
-        {
-            "label": "Account",
-            "fieldname": "account",
-            "fieldtype": "Link",
-            "options": "Account",
-            "width": 200
+            "width": 250
         },
         {
             "label": "Debit",
@@ -90,20 +91,8 @@ def get_columns():
             "width": 120
         },
         {
-            "label": "Against",
-            "fieldname": "against",
-            "fieldtype": "Data",
-            "width": 180
-        },
-        {
-            "label": "Party Type",
-            "fieldname": "party_type",
-            "fieldtype": "Data",
-            "width": 100
-        },
-        {
-            "label": "Party",
-            "fieldname": "party",
+            "label": "Balance",
+            "fieldname": "balance_display",
             "fieldtype": "Data",
             "width": 160
         },
@@ -111,9 +100,38 @@ def get_columns():
 
 
 def get_data(filters):
+    if not filters.get("party"):
+        return []
+
+    party = filters.get("party")
+
+    # ---- 1. Opening balance: sum of all entries before from_date ----
+    opening_filters = dict(filters)
+    opening_filters.pop("from_date", None)
+    opening_conditions = get_conditions(opening_filters)
+
+    if filters.get("from_date"):
+        opening_conditions += " AND gle.posting_date < %(from_date)s"
+
+    opening_row = frappe.db.sql("""
+        SELECT
+            SUM(gle.debit) as total_debit,
+            SUM(gle.credit) as total_credit
+        FROM `tabGL Entry` gle
+        WHERE
+            gle.docstatus = 1
+            AND gle.is_cancelled = 0
+            AND gle.party IS NOT NULL
+            AND gle.party != ''
+            {conditions}
+    """.format(conditions=opening_conditions), filters, as_dict=1)
+
+    opening_balance = flt(opening_row[0].total_debit) - flt(opening_row[0].total_credit) if opening_row else 0.0
+
+    # ---- 2. Period entries ----
     conditions = get_conditions(filters)
 
-    data = frappe.db.sql("""
+    entries = frappe.db.sql("""
         SELECT
             gle.posting_date,
             gle.voucher_type,
@@ -128,6 +146,7 @@ def get_data(filters):
             `tabGL Entry` gle
         WHERE
             gle.docstatus = 1
+            AND gle.is_cancelled = 0
             AND gle.party IS NOT NULL
             AND gle.party != ''
             {conditions}
@@ -135,7 +154,101 @@ def get_data(filters):
             gle.posting_date ASC, gle.voucher_no ASC
     """.format(conditions=conditions), filters, as_dict=1)
 
+    # ---- 3. Build ledger rows with running balance ----
+    data = []
+    running_balance = opening_balance
+    total_debit = 0.0
+    total_credit = 0.0
+
+    # Opening Balance row
+    data.append({
+        "posting_date": filters.get("from_date"),
+        "particulars": "Opening Balance",
+        "voucher_type": "",
+        "voucher_no": "",
+        "debit": None,
+        "credit": None,
+        "balance_display": format_balance(running_balance),
+        "balance_raw": running_balance,
+        "is_group_row": 1
+    })
+
+    for entry in entries:
+        debit = flt(entry.debit)
+        credit = flt(entry.credit)
+        running_balance += debit - credit
+        total_debit += debit
+        total_credit += credit
+
+        # "Particulars" = the other side of the entry (the contra account),
+        # shown with Dr/Cr prefix like in a manual ledger
+        if debit > 0:
+            particulars = "Dr {0}".format(entry.account)
+        else:
+            particulars = "Cr {0}".format(entry.account)
+
+        data.append({
+            "posting_date": entry.posting_date,
+            "particulars": particulars,
+            "voucher_type": entry.voucher_type,
+            "voucher_no": entry.voucher_no,
+            "debit": debit or None,
+            "credit": credit or None,
+            "balance_display": format_balance(running_balance),
+            "balance_raw": running_balance
+        })
+
+    # Totals row
+    data.append({
+        "posting_date": None,
+        "particulars": "",
+        "voucher_type": "",
+        "voucher_no": "",
+        "debit": total_debit,
+        "credit": total_credit,
+        "balance_display": "",
+        "is_group_row": 1,
+        "bold": 1
+    })
+
+    # Closing Balance row
+    data.append({
+        "posting_date": None,
+        "particulars": "Closing Balance",
+        "voucher_type": "",
+        "voucher_no": "",
+        "debit": None,
+        "credit": None,
+        "balance_display": format_balance(running_balance),
+        "balance_raw": running_balance,
+        "is_group_row": 1,
+        "bold": 1
+    })
+
+    # Grand total row — matches the PDF's bottom double-total line
+    # (period totals plus the opening/closing balance brought down)
+    data.append({
+        "posting_date": None,
+        "particulars": "",
+        "voucher_type": "",
+        "voucher_no": "",
+        "debit": total_debit + (opening_balance if opening_balance > 0 else 0),
+        "credit": total_credit + (running_balance if running_balance > 0 else 0),
+        "balance_display": "",
+        "is_group_row": 1,
+        "bold": 1
+    })
+
     return data
+
+
+def format_balance(balance):
+    if balance is None:
+        return ""
+    if balance >= 0:
+        return "{0} Dr".format(frappe.utils.fmt_money(abs(balance)))
+    else:
+        return "{0} Cr".format(frappe.utils.fmt_money(abs(balance)))
 
 
 def get_conditions(filters):
@@ -149,6 +262,11 @@ def get_conditions(filters):
 
     if filters.get("to_date"):
         conditions += " AND gle.posting_date <= %(to_date)s"
+
+    # Only show Sales/Purchase related vouchers, exclude Payment Entry & Journal Entry
+    conditions += """ AND gle.voucher_type IN (
+        'Sales Invoice', 'Sales', 'Purchase Invoice', 'Purchase', 'Debit Note', 'Credit Note'
+    )"""
 
     if filters.get("party"):
         conditions += """ AND (
