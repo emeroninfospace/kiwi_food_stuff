@@ -133,6 +133,60 @@
         return stockRate * conv;
     };
 
+    const setCustomLastRate = (frm, cdt, cdn, value, was_dirty_before = frm.is_dirty()) => {
+        const row = getRow(cdt, cdn);
+        if (!row) return;
+
+        const rate = flt(value);
+        if (flt(row.custom_last_rate) === rate) return;
+
+        row.custom_last_rate = rate;
+
+        const grid_row = frm.fields_dict.items?.grid?.grid_rows_by_docname?.[cdn];
+        if (grid_row) {
+            grid_row.refresh_field('custom_last_rate');
+        }
+
+        if (!was_dirty_before && frm.is_dirty()) {
+            frm.doc.__unsaved = undefined;
+            removeEventListener('beforeunload', frm.beforeUnloadListener, { capture: true });
+            frm.toolbar?.set_indicator();
+        }
+    };
+
+    const setLastRateForRow = (frm, cdt, cdn) => {
+        const row = getRow(cdt, cdn);
+        if (!row?.item_code || !frm.doc.customer) {
+            if (row) {
+                setCustomLastRate(frm, cdt, cdn, 0);
+            }
+            return;
+        }
+
+        const was_dirty_before = frm.is_dirty();
+
+        frappe.call({
+            method: 'kiwi_food_stuff.events.sales_invoice.get_last_sales_invoice_rate',
+            args: {
+                customer: frm.doc.customer,
+                item_code: row.item_code,
+                current_invoice: frm.doc.name || null
+            },
+            callback(r) {
+                const rate = r.message ? r.message.last_rate : 0;
+                setCustomLastRate(frm, cdt, cdn, rate, was_dirty_before);
+            }
+        });
+    };
+
+    const setLastRateForAllRows = (frm) => {
+        (frm.doc.items || []).forEach((row) => {
+            if (row.item_code) {
+                setLastRateForRow(frm, row.doctype, row.name);
+            }
+        });
+    };
+
     const rememberNormalSubmitPermission = (frm) => {
         if (!frm.perm?.[0]) return;
 
@@ -197,10 +251,17 @@
     frappe.ui.form.on('Sales Invoice', {
         refresh(frm) {
             applyCreditNoteSubmitPermission(frm);
+            if (frm.doc.customer && frm.doc.items?.length) {
+                setLastRateForAllRows(frm);
+            }
         },
 
         is_return(frm) {
             applyCreditNoteSubmitPermission(frm);
+        },
+
+        customer(frm) {
+            setLastRateForAllRows(frm);
         }
     });
 
@@ -214,6 +275,8 @@
             if (row.price_list_rate && row.conversion_factor) {
                 row.stock_uom_rate = toStockRate(row.price_list_rate, row.conversion_factor);
             }
+
+            setLastRateForRow(frm, cdt, cdn);
         },
 
         price_list_rate(frm, cdt, cdn) {
