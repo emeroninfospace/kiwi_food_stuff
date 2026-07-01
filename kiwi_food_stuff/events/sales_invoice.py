@@ -15,6 +15,58 @@ def to_float(value):
         return 0
 
 @frappe.whitelist()
+def get_last_sales_invoice_rate(customer, item_code, current_invoice=None):
+    """Return the last price_list_rate sold to this customer for the given item."""
+    if not customer or not item_code:
+        return None
+
+    exclude_condition = ""
+    params = {
+        "customer": customer,
+        "item_code": item_code,
+    }
+
+    if current_invoice:
+        exclude_condition = "AND si.name != %(current_invoice)s"
+        params["current_invoice"] = current_invoice
+
+    result = frappe.db.sql(
+        """
+        SELECT
+            sii.price_list_rate,
+            si.name AS sales_invoice,
+            si.posting_date
+        FROM
+            `tabSales Invoice Item` sii
+        INNER JOIN
+            `tabSales Invoice` si ON si.name = sii.parent
+        WHERE
+            si.customer = %(customer)s
+            AND si.docstatus = 1
+            AND IFNULL(si.is_return, 0) = 0
+            AND sii.item_code = %(item_code)s
+            {exclude}
+        ORDER BY
+            si.posting_date DESC,
+            si.creation DESC
+        LIMIT 1
+        """.format(exclude=exclude_condition),
+        params,
+        as_dict=True,
+    )
+
+    if not result:
+        return None
+
+    row = result[0]
+    return {
+        "last_rate": row.price_list_rate,
+        "from_sales_invoice": row.sales_invoice,
+        "posting_date": str(row.posting_date),
+    }
+
+
+@frappe.whitelist()
 def get_conversion_factor(item_code, uom):
     conversion_factor = frappe.db.get_value(
         "UOM Conversion Detail",
