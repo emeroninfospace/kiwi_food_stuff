@@ -336,10 +336,12 @@
 
             row.ignore_pricing_rule = 1;
 
-            const currentRate = row.price_list_rate;
+            const savedPriceListRate = row.price_list_rate;
+            const savedRate = row.rate;
 
             setTimeout(() => {
-                frappe.model.set_value(cdt, cdn, 'price_list_rate', currentRate);
+                row.price_list_rate = savedPriceListRate;
+                frappe.model.set_value(cdt, cdn, 'rate', savedRate);
             }, 50);
         }
     });
