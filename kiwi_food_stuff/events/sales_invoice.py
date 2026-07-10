@@ -67,6 +67,29 @@ def get_last_sales_invoice_rate(customer, item_code, current_invoice=None):
 
 
 @frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def get_item_uoms(doctype, txt, searchfield, start, page_len, filters):
+    item_code = filters.get('item_code') if isinstance(filters, dict) else frappe.parse_json(filters).get('item_code')
+    if not item_code:
+        return []
+
+    return frappe.db.sql("""
+        SELECT uom
+        FROM `tabUOM Conversion Detail`
+        WHERE parent = %(item_code)s
+          AND parenttype = 'Item'
+          AND uom LIKE %(txt)s
+        ORDER BY uom
+        LIMIT %(page_len)s OFFSET %(start)s
+    """, {
+        'item_code': item_code,
+        'txt': f'%{txt}%',
+        'page_len': page_len,
+        'start': start
+    })
+
+
+@frappe.whitelist()
 def get_conversion_factor(item_code, uom):
     conversion_factor = frappe.db.get_value(
         "UOM Conversion Detail",
