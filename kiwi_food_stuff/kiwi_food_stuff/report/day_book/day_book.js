@@ -76,6 +76,11 @@ frappe.query_reports["Day Book"] = {
     "formatter": function(value, row, column, data, default_formatter) {
         value = default_formatter(value, row, column, data);
 
+        // Skip special coloring for the total row (identified by is_total_row flag)
+        if (!data || data.is_total_row) {
+            return value;
+        }
+
         if (column.fieldname === "debit_qty" && value && data.debit_qty > 0) {
             return `<span style="color: green; font-weight: bold;">${value}</span>`;
         }

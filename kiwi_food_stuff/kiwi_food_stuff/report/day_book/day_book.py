@@ -6,6 +6,9 @@ import frappe
 def execute(filters=None):
     columns = get_columns()
     data = get_data(filters)
+
+    data = add_total_row(data)
+
     return columns, data
 
 def get_data(filters):
@@ -352,6 +355,30 @@ def get_data(filters):
             })
 
     return sorted(data, key=lambda x: (x["posting_date"], x["voucher_no"]))
+
+
+def add_total_row(data):
+    """Append a summary row with totals for debit_qty and credit_qty."""
+    if not data:
+        return data
+
+    total_debit = sum(d.get("debit_qty") or 0 for d in data)
+    total_credit = sum(d.get("credit_qty") or 0 for d in data)
+
+    data.append({
+        "posting_date": None,
+        "particulars": "<b>Total</b>",
+        "voucher_type": "",
+        "voucher_no": "",
+        "sales_person": "",
+        "debit_qty": total_debit,
+        "credit_qty": total_credit,
+        "party": "",
+        "is_total_row": 1
+    })
+
+    return data
+
 
 def get_columns():
     return [
