@@ -8,11 +8,11 @@ STANDARD_SELLING_PRICE_LIST = "Standard Selling"
 PRICE_VALIDATION_BYPASS_ROLE = "Super Admin"
 
 
-# def to_float(value):
-#     try:
-#         return float(value or 0)
-#     except (TypeError, ValueError):
-#         return 0
+def to_float(value):
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0
 
 @frappe.whitelist()
 def get_last_sales_invoice_rate(customer, item_code, current_invoice=None):
@@ -79,18 +79,18 @@ def get_conversion_factor(item_code, uom):
     else:
         return 1
 
-# # for triggering price list rate
-# def validate_sales_invoice(doc, method):
-#     for item in doc.items:
-#         if item.price_list_rate and item.conversion_factor:
-#             stock_rate = item.price_list_rate / item.conversion_factor
+# for triggering price list rate
+def validate_sales_invoice(doc, method):
+    for item in doc.items:
+        if item.price_list_rate and item.conversion_factor:
+            stock_rate = item.price_list_rate / item.conversion_factor
 
-#             # Recalculate correctly
-#             final_rate = stock_rate * item.conversion_factor
+            # Recalculate correctly
+            final_rate = stock_rate * item.conversion_factor
 
-#             # FORCE correct value
-#             item.price_list_rate = final_rate
-#             item.rate = final_rate
+            # FORCE correct value
+            item.price_list_rate = final_rate
+            item.rate = final_rate
 
 
 def validate_sales_invoice_price_list_rates(doc, method=None):
