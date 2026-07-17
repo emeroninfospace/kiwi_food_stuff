@@ -248,9 +248,76 @@
         });
     };
 
+    const applyUomConversion = (frm, cdt, cdn) => {
+        return new Promise((resolve) => {
+            const row = getRow(cdt, cdn);
+            if (!row?.item_code || !row.uom) {
+                resolve();
+                return;
+            }
+
+            frappe.call({
+                method: 'kiwi_food_stuff.events.sales_invoice.get_conversion_factor',
+                args: {
+                    item_code: row.item_code,
+                    uom: row.uom
+                },
+                callback(r) {
+                    const conv = flt(r.message || 1);
+
+                    // Only update conversion_factor + stock_qty — keep rate / price_list_rate as-is
+                    row.conversion_factor = conv;
+                    row.stock_qty = flt(row.qty * conv, precision('stock_qty', row));
+
+                    refresh_field('conversion_factor', cdn, 'items');
+                    refresh_field('stock_qty', cdn, 'items');
+
+                    frm.dirty();
+                    resolve();
+                }
+            });
+        });
+    };
+
+    const updateAllUomConversions = async (frm) => {
+        const rows = (frm.doc.items || []).filter((row) => row.item_code && row.uom);
+        if (!rows.length) {
+            frappe.show_alert({ message: __('No items to update'), indicator: 'orange' });
+            return;
+        }
+
+        frm.dashboard.set_headline_alert(__('Updating UOM conversions...'));
+
+        for (const row of rows) {
+            await applyUomConversion(frm, row.doctype, row.name);
+        }
+
+        frm.dashboard.clear_headline();
+
+        await frm.save();
+        frappe.show_alert({
+            message: __('Conversion Factor and Stock Qty updated for {0} item(s)', [rows.length]),
+            indicator: 'green'
+        });
+    };
+
+    const setupUpdateUomButton = (frm) => {
+        frm.remove_custom_button(__('Update UOM Conversion'));
+
+        // Only after save, on draft invoices with items
+        if (frm.is_new() || cint(frm.doc.docstatus) !== 0 || !frm.doc.items?.length) {
+            return;
+        }
+
+        frm.add_custom_button(__('Update UOM Conversion'), () => {
+            updateAllUomConversions(frm);
+        });
+    };
+
     frappe.ui.form.on('Sales Invoice', {
         refresh(frm) {
             applyCreditNoteSubmitPermission(frm);
+            setupUpdateUomButton(frm);
             if (frm.doc.customer && frm.doc.items?.length) {
                 setLastRateForAllRows(frm);
             }
@@ -310,30 +377,7 @@
         },
 
         uom(frm, cdt, cdn) {
-            const row = getRow(cdt, cdn);
-            if (!row || !row.item_code || !row.uom) return;
-
-            row.ignore_pricing_rule = 1;
-
-            const prevConv = flt(row.conversion_factor) || 1;
-            const prevPriceListRate = flt(row.price_list_rate);
-            const stockRate = flt(row.stock_uom_rate) || (prevPriceListRate / prevConv);
-
-            frappe.call({
-                method: 'kiwi_food_stuff.events.sales_invoice.get_conversion_factor',
-                args: { item_code: row.item_code, uom: row.uom },
-                callback(r) {
-                    const newConv = flt(r.message) || 1;
-                    frappe.model.set_value(cdt, cdn, 'conversion_factor', newConv);
-
-                    if (stockRate) {
-                        const newPriceListRate = stockRate * newConv;
-                        setTimeout(() => {
-                            frappe.model.set_value(cdt, cdn, 'price_list_rate', newPriceListRate);
-                        }, 200);
-                    }
-                }
-            });
+            applyUomConversion(frm, cdt, cdn);
         },
 
         qty(frm, cdt, cdn) {
