@@ -263,11 +263,6 @@ def get_conditions(filters):
     if filters.get("to_date"):
         conditions += " AND gle.posting_date <= %(to_date)s"
 
-    # Only show Sales/Purchase related vouchers, exclude Payment Entry & Journal Entry
-    conditions += """ AND gle.voucher_type IN (
-        'Sales Invoice', 'Sales', 'Purchase Invoice', 'Purchase', 'Debit Note', 'Credit Note'
-    )"""
-
     if filters.get("party"):
         conditions += """ AND (
             gle.party = %(party)s

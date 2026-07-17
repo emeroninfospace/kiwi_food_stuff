@@ -321,6 +321,15 @@
             if (frm.doc.customer && frm.doc.items?.length) {
                 setLastRateForAllRows(frm);
             }
+
+            frm.set_query('uom', 'items', function(doc, cdt, cdn) {
+                const row = locals[cdt][cdn];
+                if (!row || !row.item_code) return {};
+                return {
+                    query: 'kiwi_food_stuff.events.sales_invoice.get_item_uoms',
+                    filters: { item_code: row.item_code }
+                };
+            });
         },
 
         is_return(frm) {
@@ -377,10 +386,12 @@
 
             row.ignore_pricing_rule = 1;
 
-            const currentRate = row.price_list_rate;
+            const savedPriceListRate = row.price_list_rate;
+            const savedRate = row.rate;
 
             setTimeout(() => {
-                frappe.model.set_value(cdt, cdn, 'price_list_rate', currentRate);
+                row.price_list_rate = savedPriceListRate;
+                frappe.model.set_value(cdt, cdn, 'rate', savedRate);
             }, 50);
         }
     });
