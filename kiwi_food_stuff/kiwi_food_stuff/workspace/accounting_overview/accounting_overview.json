@@ -1,0 +1,34 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"5X19M2GzZq\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Accounting Overview</span>\",\"col\":12}},{\"id\":\"crOLJtiOW7\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"Accouting Dashboard\",\"col\":12}}]",
+ "creation": "2026-08-20 10:15:49.714100",
+ "custom_blocks": [
+  {
+   "custom_block_name": "Accouting Dashboard",
+   "label": "Accouting Dashboard"
+  }
+ ],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 1,
+ "icon": "money-coins-1",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "Accounting Overview",
+ "links": [],
+ "modified": "2026-08-20 10:16:18.788734",
+ "modified_by": "Administrator",
+ "module": "Kiwi Food Stuff",
+ "name": "Accounting Overview",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 8.0,
+ "shortcuts": [],
+ "title": "Accounting Overview"
+}
