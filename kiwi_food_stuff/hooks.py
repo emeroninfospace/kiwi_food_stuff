@@ -265,6 +265,12 @@ fixtures = [
             ]
         ]
     ]
+    },
+    {
+        "dt": "Custom HTML Block",
+        "filters": [
+            ["name", "in", ["Accouting Dashboard"]]
+        ]
     }
 
 ]
