@@ -6,7 +6,8 @@ from frappe.utils import cstr, flt
 def get_last_purchase_invoice_rate(
     supplier, item_code, current_invoice=None, company=None, uom=None
 ):
-    """Return the last rate purchased from this supplier for the given item."""
+    """Return the last rate purchased from this supplier for the given item.
+    Prefers the same UOM and falls back to any UOM."""
     if not supplier or not item_code:
         return None
 
@@ -27,68 +28,16 @@ def get_last_purchase_invoice_rate(
         conditions.append("pi.company = %(company)s")
         params["company"] = company
 
-    if uom:
-        conditions.append("pii.uom = %(uom)s")
-        params["uom"] = uom
-
     if current_invoice and not cstr(current_invoice).startswith("new-"):
         conditions.append("pi.name != %(current_invoice)s")
         params["current_invoice"] = current_invoice
 
-    where_clause = " AND ".join(conditions)
+    result = None
+    if uom:
+        result = _get_last_purchase_row([*conditions, "pii.uom = %(uom)s"], {**params, "uom": uom})
 
-    result = frappe.db.sql(
-        f"""
-        SELECT
-            pii.rate,
-            pi.name AS purchase_invoice,
-            pi.posting_date,
-            pii.uom
-        FROM
-            `tabPurchase Invoice Item` pii
-        INNER JOIN
-            `tabPurchase Invoice` pi ON pi.name = pii.parent
-        WHERE
-            {where_clause}
-        ORDER BY
-            pi.posting_date DESC,
-            pi.posting_time DESC,
-            pi.creation DESC,
-            pii.idx DESC
-        LIMIT 1
-        """,
-        params,
-        as_dict=True,
-    )
-
-    if not result and uom:
-        params_without_uom = {k: v for k, v in params.items() if k != "uom"}
-        conditions_without_uom = [c for c in conditions if "pii.uom" not in c]
-        where_clause = " AND ".join(conditions_without_uom)
-
-        result = frappe.db.sql(
-            f"""
-            SELECT
-                pii.rate,
-                pi.name AS purchase_invoice,
-                pi.posting_date,
-                pii.uom
-            FROM
-                `tabPurchase Invoice Item` pii
-            INNER JOIN
-                `tabPurchase Invoice` pi ON pi.name = pii.parent
-            WHERE
-                {where_clause}
-            ORDER BY
-                pi.posting_date DESC,
-                pi.posting_time DESC,
-                pi.creation DESC,
-                pii.idx DESC
-            LIMIT 1
-            """,
-            params_without_uom,
-            as_dict=True,
-        )
+    if not result:
+        result = _get_last_purchase_row(conditions, params)
 
     if not result:
         return None
@@ -100,3 +49,44 @@ def get_last_purchase_invoice_rate(
         "posting_date": str(row.posting_date),
         "uom": row.uom,
     }
+
+
+@frappe.whitelist()
+def get_last_purchase_invoice_rates(supplier, items, current_invoice=None, company=None):
+    """Batch version of get_last_purchase_invoice_rate for [{name, item_code, uom}] rows,
+    so the form needs one request instead of one per row. Returns {row name: result}."""
+    items = frappe.parse_json(items) or []
+
+    return {
+        d.get("name"): get_last_purchase_invoice_rate(
+            supplier, d.get("item_code"), current_invoice, company, d.get("uom")
+        )
+        for d in items
+        if d.get("name") and d.get("item_code")
+    }
+
+
+def _get_last_purchase_row(conditions, params):
+    return frappe.db.sql(
+        f"""
+        SELECT
+            pii.rate,
+            pi.name AS purchase_invoice,
+            pi.posting_date,
+            pii.uom
+        FROM
+            `tabPurchase Invoice Item` pii
+        INNER JOIN
+            `tabPurchase Invoice` pi ON pi.name = pii.parent
+        WHERE
+            {" AND ".join(conditions)}
+        ORDER BY
+            pi.posting_date DESC,
+            pi.posting_time DESC,
+            pi.creation DESC,
+            pii.idx DESC
+        LIMIT 1
+        """,
+        params,
+        as_dict=True,
+    )
