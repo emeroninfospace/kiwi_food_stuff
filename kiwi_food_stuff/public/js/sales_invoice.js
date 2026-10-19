@@ -164,27 +164,154 @@
         }
 
         const was_dirty_before = frm.is_dirty();
+        const item_code = row.item_code;
 
         frappe.call({
             method: 'kiwi_food_stuff.events.sales_invoice.get_last_sales_invoice_rate',
             args: {
                 customer: frm.doc.customer,
-                item_code: row.item_code,
+                item_code: item_code,
                 current_invoice: frm.doc.name || null
             },
             callback(r) {
+                // Ignore a late response if the row's item was changed meanwhile
+                if (getRow(cdt, cdn)?.item_code !== item_code) return;
+
                 const rate = r.message ? r.message.last_rate : 0;
                 setCustomLastRate(frm, cdt, cdn, rate, was_dirty_before);
             }
         });
     };
 
+    // One request for all rows instead of one per row
     const setLastRateForAllRows = (frm) => {
-        (frm.doc.items || []).forEach((row) => {
-            if (row.item_code) {
-                setLastRateForRow(frm, row.doctype, row.name);
+        const rows = (frm.doc.items || []).filter((row) => row.item_code);
+        if (!rows.length) return;
+
+        if (!frm.doc.customer) {
+            rows.forEach((row) => setCustomLastRate(frm, row.doctype, row.name, 0));
+            return;
+        }
+
+        const was_dirty_before = frm.is_dirty();
+
+        frappe.call({
+            method: 'kiwi_food_stuff.events.sales_invoice.get_last_sales_invoice_rates',
+            args: {
+                customer: frm.doc.customer,
+                item_codes: rows.map((row) => row.item_code),
+                current_invoice: frm.doc.name || null
+            },
+            callback(r) {
+                const rates = r.message || {};
+                rows.forEach((row) => {
+                    const current = getRow(row.doctype, row.name);
+                    if (!current?.item_code) return;
+
+                    const last = rates[current.item_code];
+                    setCustomLastRate(frm, row.doctype, row.name, last ? last.last_rate : 0, was_dirty_before);
+                });
             }
         });
+    };
+
+    // Per-form cache of each item's UOM conversion factors and price list rates, so a UOM
+    // change is resolved locally instead of through several dependent server calls
+    const PRICE_CACHE_TTL = 10 * 60 * 1000;
+
+    const priceKey = (frm, item_code) =>
+        [item_code, frm.doc.selling_price_list, frm.doc.customer, frm.doc.posting_date].join('|');
+
+    const prefetchUomPrices = (frm, item_code) => {
+        if (!item_code || !frm.doc.selling_price_list) return;
+
+        frm._kiwi_uom_prices = frm._kiwi_uom_prices || {};
+        const key = priceKey(frm, item_code);
+        const cached = frm._kiwi_uom_prices[key];
+        if (cached && Date.now() - cached.at < PRICE_CACHE_TTL) return;
+
+        frm._kiwi_uom_prices[key] = { at: Date.now(), data: null };
+
+        frappe.xcall('kiwi_food_stuff.events.sales_invoice.get_item_uom_prices', {
+            item_code: item_code,
+            price_list: frm.doc.selling_price_list,
+            customer: frm.doc.customer || null,
+            transaction_date: frm.doc.posting_date || null
+        }).then((data) => {
+            if (frm._kiwi_uom_prices[key]) frm._kiwi_uom_prices[key].data = data;
+        }).catch(() => {
+            delete frm._kiwi_uom_prices[key];
+        });
+    };
+
+    const getCachedUomPrice = (frm, row) => {
+        const cached = frm._kiwi_uom_prices?.[priceKey(frm, row.item_code)];
+        if (!cached?.data || Date.now() - cached.at >= PRICE_CACHE_TTL) return null;
+        return cached.data[row.uom] || null;
+    };
+
+    // Patch ERPNext's Sales Invoice controller so price changes don't depend on network timing
+    const patchController = (frm) => {
+        const ctrl = frm.cscript;
+        if (!ctrl || ctrl._kiwi_patched) return;
+        ctrl._kiwi_patched = true;
+
+        // UOM change: use the cached conversion factor and price, no server call.
+        // Falls back to ERPNext's flow when the item's prices aren't cached yet.
+        const erpnextUom = ctrl.uom;
+        ctrl.uom = function (doc, cdt, cdn) {
+            const row = getRow(cdt, cdn);
+            const price = row?.item_code && row.uom ? getCachedUomPrice(frm, row) : null;
+            if (!price || price.price_list_rate === null || price.price_list_rate === undefined) {
+                if (row?.item_code) prefetchUomPrices(frm, row.item_code);
+                return erpnextUom.call(this, doc, cdt, cdn);
+            }
+
+            row.pricing_rules = '';
+            row.conversion_factor = flt(price.conversion_factor) || 1;
+            refresh_field('conversion_factor', cdn, 'items');
+            this.conversion_factor(doc, cdt, cdn, true);
+
+            const rate = flt(price.price_list_rate) * flt(doc.plc_conversion_rate || 1) / flt(doc.conversion_rate || 1);
+            return frappe.model.set_value(cdt, cdn, 'price_list_rate', rate);
+        };
+
+        // Qty change: keep the row's rate and only recompute stock qty and totals.
+        // ERPNext would re-fetch the price list rate here and overwrite the rate.
+        const erpnextQty = ctrl.qty;
+        ctrl.qty = function (doc, cdt, cdn) {
+            const row = getRow(cdt, cdn);
+            if (!row?.price_list_rate) {
+                return erpnextQty.call(this, doc, cdt, cdn);
+            }
+
+            this.conversion_factor(doc, cdt, cdn, true);
+            this.calculate_taxes_and_totals();
+        };
+
+        // ERPNext drops apply_price_list while another call is in flight, which loses the
+        // price update on a slow network. Replay the dropped call once the current one finishes.
+        const erpnextApplyPriceList = ctrl.apply_price_list;
+        const pendingPriceList = new Map();
+        ctrl.apply_price_list = function (item, reset_plc_conversion) {
+            if (this.in_apply_price_list) {
+                pendingPriceList.set(item ? item.name : '__all__', [item, reset_plc_conversion]);
+                return;
+            }
+
+            const req = erpnextApplyPriceList.call(this, item, reset_plc_conversion);
+            req?.always?.(() => {
+                const next = pendingPriceList.entries().next().value;
+                if (!next) return;
+
+                pendingPriceList.delete(next[0]);
+                const [row, reset] = next[1];
+                if (!row || getRow(row.doctype, row.name)) {
+                    this.apply_price_list(row, reset);
+                }
+            });
+            return req;
+        };
     };
 
     const rememberNormalSubmitPermission = (frm) => {
@@ -315,7 +442,12 @@
     };
 
     frappe.ui.form.on('Sales Invoice', {
+        onload(frm) {
+            patchController(frm);
+        },
+
         refresh(frm) {
+            patchController(frm);
             applyCreditNoteSubmitPermission(frm);
             setupUpdateUomButton(frm);
             if (frm.doc.customer && frm.doc.items?.length) {
@@ -342,28 +474,28 @@
     });
 
     frappe.ui.form.on('Sales Invoice Item', {
+        // These handlers return a resolved promise: returning nothing makes Frappe wait for
+        // every pending request before running ERPNext's handler for the same field.
         item_code(frm, cdt, cdn) {
             const row = getRow(cdt, cdn);
-            if (!row) return;
-
-            row.ignore_pricing_rule = 1;
-
-            if (row.price_list_rate && row.conversion_factor) {
-                row.stock_uom_rate = toStockRate(row.price_list_rate, row.conversion_factor);
+            if (row?.item_code) {
+                prefetchUomPrices(frm, row.item_code);
             }
 
             setLastRateForRow(frm, cdt, cdn);
+            return Promise.resolve();
         },
 
         price_list_rate(frm, cdt, cdn) {
             const row = getRow(cdt, cdn);
-            if (!row) return;
+            if (!row) return Promise.resolve();
 
             row.ignore_pricing_rule = 1;
 
             if (row.conversion_factor) {
                 row.stock_uom_rate = toStockRate(row.price_list_rate, row.conversion_factor);
             }
+            return Promise.resolve();
         },
 
         stock_uom_rate(frm, cdt, cdn) {
@@ -374,26 +506,9 @@
 
             const newRate = toSellingRate(row.stock_uom_rate, row.conversion_factor);
             frappe.model.set_value(cdt, cdn, 'price_list_rate', newRate);
-        },
-
-        uom(frm, cdt, cdn) {
-            applyUomConversion(frm, cdt, cdn);
-        },
-
-        qty(frm, cdt, cdn) {
-            const row = getRow(cdt, cdn);
-            if (!row) return;
-
-            row.ignore_pricing_rule = 1;
-
-            const savedPriceListRate = row.price_list_rate;
-            const savedRate = row.rate;
-
-            setTimeout(() => {
-                row.price_list_rate = savedPriceListRate;
-                frappe.model.set_value(cdt, cdn, 'rate', savedRate);
-            }, 50);
         }
+
+        // uom and qty are handled by the patched controller methods in patchController
     });
 
 })();

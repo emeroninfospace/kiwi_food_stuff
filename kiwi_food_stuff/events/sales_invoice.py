@@ -1,7 +1,8 @@
 import frappe
+from erpnext.stock.doctype.price_list.price_list import get_price_list_details
+from erpnext.stock.get_item_details import get_price_list_rate_for
 from frappe import _
 from frappe.utils import flt, getdate
-
 
 SETTINGS_DOCTYPE = "Kiwi Food Stuff Settings"
 STANDARD_SELLING_PRICE_LIST = "Standard Selling"
@@ -67,6 +68,18 @@ def get_last_sales_invoice_rate(customer, item_code, current_invoice=None):
 
 
 @frappe.whitelist()
+def get_last_sales_invoice_rates(customer, item_codes, current_invoice=None):
+    """Batch version of get_last_sales_invoice_rate: one request for all rows of the form."""
+    item_codes = frappe.parse_json(item_codes) or []
+
+    return {
+        item_code: get_last_sales_invoice_rate(customer, item_code, current_invoice)
+        for item_code in set(item_codes)
+        if item_code
+    }
+
+
+@frappe.whitelist()
 @frappe.validate_and_sanitize_search_inputs
 def get_item_uoms(doctype, txt, searchfield, start, page_len, filters):
     item_code = filters.get('item_code') if isinstance(filters, dict) else frappe.parse_json(filters).get('item_code')
@@ -101,6 +114,44 @@ def get_conversion_factor(item_code, uom):
         return conversion_factor
     else:
         return 1
+
+
+@frappe.whitelist()
+def get_item_uom_prices(item_code, price_list, customer=None, transaction_date=None):
+    """Conversion factor and price list rate for every UOM of an item, so the
+    Sales Invoice form can switch UOM without a server round trip."""
+    frappe.has_permission("Sales Invoice", "create", throw=True)
+
+    if not item_code or not price_list:
+        return {}
+
+    stock_uom = frappe.get_cached_value("Item", item_code, "stock_uom")
+    args = frappe._dict(
+        price_list=price_list,
+        customer=customer,
+        stock_uom=stock_uom,
+        qty=1,
+        transaction_date=getdate(transaction_date or frappe.utils.today()),
+        price_list_uom_dependant=get_price_list_details(price_list).get("price_not_uom_dependent"),
+    )
+
+    uoms = {stock_uom: 1}
+    for d in frappe.get_all(
+        "UOM Conversion Detail",
+        filters={"parent": item_code, "parenttype": "Item"},
+        fields=["uom", "conversion_factor"],
+    ):
+        uoms[d.uom] = flt(d.conversion_factor) or 1
+
+    out = {}
+    for uom, conversion_factor in uoms.items():
+        args.update(uom=uom, conversion_factor=conversion_factor)
+        out[uom] = {
+            "conversion_factor": conversion_factor,
+            "price_list_rate": get_price_list_rate_for(args, item_code),
+        }
+
+    return out
 
 # # for triggering price list rate
 # def validate_sales_invoice(doc, method):
@@ -282,7 +333,7 @@ def is_price_list_rate_validation_bypassed(user=None):
         return False
 
     settings = get_settings()
-    if not settings or not to_float(settings.sales_invoice_price_list_permission):
+    if not settings or not flt(settings.sales_invoice_price_list_permission):
         return False
 
     return PRICE_VALIDATION_BYPASS_ROLE in frappe.get_roles(user)
