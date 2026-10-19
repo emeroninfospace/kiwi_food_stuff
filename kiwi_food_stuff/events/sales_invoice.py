@@ -9,22 +9,23 @@ STANDARD_SELLING_PRICE_LIST = "Standard Selling"
 PRICE_VALIDATION_BYPASS_ROLE = "Super Admin"
 
 
-# def to_float(value):
-#     try:
-#         return float(value or 0)
-#     except (TypeError, ValueError):
-#         return 0
-
 @frappe.whitelist()
 def get_last_sales_invoice_rate(customer, item_code, current_invoice=None):
     """Return the last price_list_rate sold to this customer for the given item."""
-    if not customer or not item_code:
-        return None
+    return get_last_sales_invoice_rates(customer, [item_code], current_invoice).get(item_code)
+
+
+@frappe.whitelist()
+def get_last_sales_invoice_rates(customer, item_codes, current_invoice=None):
+    """Last price_list_rate sold to this customer for each item, in a single query."""
+    item_codes = tuple({d for d in (frappe.parse_json(item_codes) or []) if d})
+    if not customer or not item_codes:
+        return {}
 
     exclude_condition = ""
     params = {
         "customer": customer,
-        "item_code": item_code,
+        "item_codes": item_codes,
     }
 
     if current_invoice:
@@ -32,50 +33,42 @@ def get_last_sales_invoice_rate(customer, item_code, current_invoice=None):
         params["current_invoice"] = current_invoice
 
     result = frappe.db.sql(
-        """
-        SELECT
-            sii.price_list_rate,
-            si.name AS sales_invoice,
-            si.posting_date
-        FROM
-            `tabSales Invoice Item` sii
-        INNER JOIN
-            `tabSales Invoice` si ON si.name = sii.parent
-        WHERE
-            si.customer = %(customer)s
-            AND si.docstatus = 1
-            AND IFNULL(si.is_return, 0) = 0
-            AND sii.item_code = %(item_code)s
-            {exclude}
-        ORDER BY
-            si.posting_date DESC,
-            si.creation DESC
-        LIMIT 1
-        """.format(exclude=exclude_condition),
+        f"""
+        SELECT item_code, price_list_rate, sales_invoice, posting_date
+        FROM (
+            SELECT
+                sii.item_code,
+                sii.price_list_rate,
+                si.name AS sales_invoice,
+                si.posting_date,
+                ROW_NUMBER() OVER (
+                    PARTITION BY sii.item_code
+                    ORDER BY si.posting_date DESC, si.creation DESC
+                ) AS row_no
+            FROM
+                `tabSales Invoice Item` sii
+            INNER JOIN
+                `tabSales Invoice` si ON si.name = sii.parent
+            WHERE
+                si.customer = %(customer)s
+                AND si.docstatus = 1
+                AND IFNULL(si.is_return, 0) = 0
+                AND sii.item_code IN %(item_codes)s
+                {exclude_condition}
+        ) last_rates
+        WHERE row_no = 1
+        """,
         params,
         as_dict=True,
     )
 
-    if not result:
-        return None
-
-    row = result[0]
     return {
-        "last_rate": row.price_list_rate,
-        "from_sales_invoice": row.sales_invoice,
-        "posting_date": str(row.posting_date),
-    }
-
-
-@frappe.whitelist()
-def get_last_sales_invoice_rates(customer, item_codes, current_invoice=None):
-    """Batch version of get_last_sales_invoice_rate: one request for all rows of the form."""
-    item_codes = frappe.parse_json(item_codes) or []
-
-    return {
-        item_code: get_last_sales_invoice_rate(customer, item_code, current_invoice)
-        for item_code in set(item_codes)
-        if item_code
+        row.item_code: {
+            "last_rate": row.price_list_rate,
+            "from_sales_invoice": row.sales_invoice,
+            "posting_date": str(row.posting_date),
+        }
+        for row in result
     }
 
 
@@ -109,7 +102,7 @@ def get_conversion_factor(item_code, uom):
         {"parent": item_code, "uom": uom},
         "conversion_factor"
     )
-    
+
     if conversion_factor:
         return conversion_factor
     else:
@@ -117,54 +110,68 @@ def get_conversion_factor(item_code, uom):
 
 
 @frappe.whitelist()
-def get_item_uom_prices(item_code, price_list, customer=None, transaction_date=None):
-    """Conversion factor and price list rate for every UOM of an item, so the
-    Sales Invoice form can switch UOM without a server round trip."""
-    frappe.has_permission("Sales Invoice", "create", throw=True)
-
-    if not item_code or not price_list:
+def get_conversion_factors(items):
+    """Batch version of get_conversion_factor for [{name, item_code, uom}] rows.
+    Returns {row name: conversion factor}."""
+    items = frappe.parse_json(items) or []
+    item_codes = {d.get("item_code") for d in items if d.get("item_code")}
+    if not item_codes:
         return {}
 
-    stock_uom = frappe.get_cached_value("Item", item_code, "stock_uom")
+    factors = {
+        (d.parent, d.uom): d.conversion_factor
+        for d in frappe.get_all(
+            "UOM Conversion Detail",
+            filters={"parent": ["in", list(item_codes)], "parenttype": "Item"},
+            fields=["parent", "uom", "conversion_factor"],
+        )
+    }
+
+    return {d.get("name"): factors.get((d.get("item_code"), d.get("uom"))) or 1 for d in items}
+
+
+@frappe.whitelist()
+def get_item_uom_prices(item_codes, price_list, customer=None, transaction_date=None):
+    """Conversion factor and price list rate for every UOM of the given items, so the
+    Sales Invoice form can switch UOM without a server round trip.
+    Returns {item_code: {uom: {conversion_factor, price_list_rate}}}."""
+    frappe.has_permission("Sales Invoice", "create", throw=True)
+
+    item_codes = list({d for d in (frappe.parse_json(item_codes) or []) if d})
+    if not item_codes or not price_list:
+        return {}
+
+    stock_uoms = dict(
+        frappe.get_all("Item", filters={"name": ["in", item_codes]}, fields=["name", "stock_uom"], as_list=True)
+    )
+    item_uoms = {item_code: {stock_uom: 1} for item_code, stock_uom in stock_uoms.items()}
+    for d in frappe.get_all(
+        "UOM Conversion Detail",
+        filters={"parent": ["in", item_codes], "parenttype": "Item"},
+        fields=["parent", "uom", "conversion_factor"],
+    ):
+        item_uoms[d.parent][d.uom] = flt(d.conversion_factor) or 1
+
     args = frappe._dict(
         price_list=price_list,
         customer=customer,
-        stock_uom=stock_uom,
         qty=1,
         transaction_date=getdate(transaction_date or frappe.utils.today()),
         price_list_uom_dependant=get_price_list_details(price_list).get("price_not_uom_dependent"),
     )
 
-    uoms = {stock_uom: 1}
-    for d in frappe.get_all(
-        "UOM Conversion Detail",
-        filters={"parent": item_code, "parenttype": "Item"},
-        fields=["uom", "conversion_factor"],
-    ):
-        uoms[d.uom] = flt(d.conversion_factor) or 1
-
     out = {}
-    for uom, conversion_factor in uoms.items():
-        args.update(uom=uom, conversion_factor=conversion_factor)
-        out[uom] = {
-            "conversion_factor": conversion_factor,
-            "price_list_rate": get_price_list_rate_for(args, item_code),
-        }
+    for item_code, uoms in item_uoms.items():
+        args.stock_uom = stock_uoms[item_code]
+        out[item_code] = {}
+        for uom, conversion_factor in uoms.items():
+            args.update(uom=uom, conversion_factor=conversion_factor)
+            out[item_code][uom] = {
+                "conversion_factor": conversion_factor,
+                "price_list_rate": get_price_list_rate_for(args, item_code),
+            }
 
     return out
-
-# # for triggering price list rate
-# def validate_sales_invoice(doc, method):
-#     for item in doc.items:
-#         if item.price_list_rate and item.conversion_factor:
-#             stock_rate = item.price_list_rate / item.conversion_factor
-
-#             # Recalculate correctly
-#             final_rate = stock_rate * item.conversion_factor
-
-#             # FORCE correct value
-#             item.price_list_rate = final_rate
-#             item.rate = final_rate
 
 
 def validate_sales_invoice_price_list_rates(doc, method=None):
